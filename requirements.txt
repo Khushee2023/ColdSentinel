@@ -1,9 +1,0 @@
-langgraph
-langgraph-checkpoint-sqlite
-langchain
-langchain-google-genai
-tavily-python
-fastapi
-uvicorn
-pydantic
-python-dotenv
