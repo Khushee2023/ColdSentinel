@@ -1,15 +1,16 @@
 """5-Agent LangGraph Pipeline for ColdSentinel.
 
-Architected as a 5-agent LangGraph StateGraph pipeline combining Machine Learning
-(Isolation Forest) and contextual reasoning over telemetry signals to predict
-cold chain failure 40+ minutes in advance.
+Architected as a 5-Agent LangGraph StateGraph pipeline combining Machine Learning
+(Isolation Forest), contextual reasoning, prognostic risk assessment, and Generative
+AI (Google Gemini LLM) to reason over risk signals and predict failure 40+ minutes
+in advance.
 
 Agents in Pipeline:
 1. Ingestion Agent (Telemetry Validation & Preprocessing)
 2. ML Anomaly Detection Agent (Isolation Forest feature scoring)
 3. Contextual Reasoning Agent (Door event vs compressor degradation reasoning)
 4. Predictive Risk & Prognostics Agent (Rolling slope & 40+ min ETA to failure)
-5. Action & Alert Dispatch Agent (Severity assignment & mitigation instructions)
+5. GenAI Diagnostic & Action Dispatch Agent (Google Gemini LLM Root-Cause Analysis)
 """
 
 from collections import defaultdict, deque
@@ -18,6 +19,7 @@ import numpy as np
 
 from langgraph.graph import StateGraph, START, END
 from backend.predictor import score_reading
+from backend.llm_agent import generate_diagnostic
 
 FAIL_TEMP = 8.0  # critical threshold where cold-chain products spoil
 _last_flag = defaultdict(int)  # per-unit memory of previous anomaly flag
@@ -55,7 +57,7 @@ class PipelineState(TypedDict):
     severity: Optional[str]
     advance_warning: bool
 
-    # Agent 5: Action & Dispatch
+    # Agent 5: GenAI Root Cause & Action Dispatch
     message: Optional[str]
     action_required: bool
 
@@ -166,18 +168,20 @@ def risk_prognostics_agent(state: PipelineState) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Agent 5: Action & Alert Dispatch Agent
+# Agent 5: GenAI Diagnostic & Action Dispatch Agent (Google Gemini LLM)
 # ---------------------------------------------------------------------------
 def action_dispatch_agent(state: PipelineState) -> dict:
-    """Agent 5: Formulates targeted operational actions and dispatch messages."""
+    """Agent 5: Uses Gemini LLM to synthesize root-cause diagnosis & prescriptive mitigation."""
     if state["status"] == "alert":
-        eta_desc = f"about {state['eta_min']} min" if state["eta_min"] is not None else "an unknown time"
-        early_note = " [EARLY WARNING 40+ MIN AHEAD]" if state.get("advance_warning") else ""
-        msg = (
-            f"Unit {state['unit_id']}{early_note}: cooling degradation detected "
-            f"(compressor current {state['current_a']:.1f} A, temp {state['temp_c']:.1f} °C). "
-            f"Estimated {eta_desc} until critical {FAIL_TEMP:.0f} °C limit. "
-            f"Action: inspect compressor coils/refrigerant and transfer perishable stock."
+        eta_int = int(state["eta_min"]) if state["eta_min"] is not None else None
+        msg = generate_diagnostic(
+            unit_id=state["unit_id"],
+            temp_c=state["temp_c"],
+            current_a=state["current_a"],
+            ambient_c=state["ambient_c"],
+            eta_min=eta_int,
+            anomaly_score=state["score"],
+            advance_warning=state.get("advance_warning", False),
         )
         action_req = True
     else:

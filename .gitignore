@@ -21,6 +21,10 @@ wheels/
 .installed.cfg
 *.egg
 
+# Secrets and local environment files
+.env
+*.env.local
+
 # SQLite database local run state
 data/coldsentinel.db
 
