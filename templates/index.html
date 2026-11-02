@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ColdSentinel</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+  <header>
+    <div>
+      <h1>ColdSentinel</h1>
+      <p>Early warning for refrigeration failures</p>
+    </div>
+    <span id="live" class="live">connecting...</span>
+  </header>
+
+  <main>
+    <section>
+      <h2>Units</h2>
+      <div id="units" class="units"></div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <h2>Trend</h2>
+        <select id="unit-select"></select>
+      </div>
+      <canvas id="chart" height="110"></canvas>
+    </section>
+
+    <section>
+      <h2>Alerts</h2>
+      <ul id="alerts" class="alerts"></ul>
+    </section>
+  </main>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
