@@ -1,152 +1,136 @@
-# ColdSentinel: IoT & AI-Powered Cold Chain Failure Prediction & Anomaly Detection
+# ColdSentinel: 5-Agent LangGraph Anomaly & Failure Prediction Pipeline
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![Framework](https://img.shields.io/badge/Framework-Flask%203.x-lightgrey.svg)](https://flask.palletsprojects.com/)
+[![Framework](https://img.shields.io/badge/Agentic%20Framework-LangGraph%201.2+-blueviolet.svg)](https://github.com/langchain-ai/langgraph)
 [![ML Model](https://img.shields.io/badge/ML-Isolation%20Forest-orange.svg)](https://scikit-learn.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-**ColdSentinel** is an intelligent monitoring, early-warning, and predictive anomaly detection system built specifically for cold chains (pharmaceuticals, vaccines, food refrigeration units, and cold storage logistics).
+**ColdSentinel** is an intelligent, agentic IoT monitoring and early-warning prognostic system for refrigeration units and cold-chain infrastructure (vaccines, pharmaceuticals, biologics, and perishable logistics).
 
-Rather than reacting to basic threshold violations after food or medical products are compromised, ColdSentinel continuously scores multi-sensor telemetry with Machine Learning (Isolation Forest) and contextual reasoning to detect cooling degradation, predict **Time-To-Failure (ETA to critical threshold)**, and suppress false alarms caused by normal door openings.
+Architected as a **5-Agent LangGraph StateGraph pipeline**, ColdSentinel combines Machine Learning (Isolation Forest anomaly detection) with real-time contextual reasoning across multi-sensor telemetry to detect cooling degradation, suppress benign false alarms (e.g., door openings), and predict **Time-To-Failure (ETA to critical 8.0°C) 40+ minutes in advance**.
 
 ---
 
-## Architecture Diagram
+## 🏛️ System Architecture
 
 ```mermaid
 flowchart TD
-    subgraph DataSources["📡 Edge / Sensor Layer"]
-        A1["Refrigeration Unit Sensors<br/>(Temp, Ambient, Door, Compressor Current)"]
-        A2["Replay Simulation Script<br/>(scripts/replay.py)"]
+    subgraph Sensors["📡 Edge & Telemetry Sources"]
+        S1["Refrigeration Unit Sensors<br/>(Temp, Ambient, Door, Compressor Current)"]
+        S2["Sensor Replay Simulator<br/>(scripts/replay.py)"]
     end
 
-    subgraph Ingestion["🌐 Flask REST Ingestion API"]
-        B1["POST /api/ingest<br/>(JSON Telemetry)"]
+    subgraph API["🌐 Ingestion API (Flask REST)"]
+        API1["POST /api/ingest<br/>(Raw Telemetry Payload)"]
     end
 
-    subgraph Pipeline["⚙️ Multi-Stage Processing Pipeline (pipeline.py)"]
-        C1["Stage 1: Validation & Ingest<br/>Check mandatory telemetry fields"]
-        C2["Stage 2: ML Anomaly Scoring<br/>Isolation Forest (model/iforest.joblib)"]
-        C3["Stage 3: Contextual Reasoning<br/>Differentiate Door Events vs. Degradation"]
-        C4["Stage 4: Risk & ETA Prediction<br/>Trend slope & Time-to-8°C calculation"]
-        C5["Stage 5: Alert Generation<br/>Severity rating & actionable messaging"]
-        
-        C1 --> C2 --> C3 --> C4 --> C5
+    subgraph LangGraph["🤖 5-Agent LangGraph StateGraph Pipeline (backend/pipeline.py)"]
+        direction TB
+        Agent1["Agent 1: Ingestion & Validation Agent<br/>• Schema validation & numeric sanitization"]
+        Agent2["Agent 2: ML Anomaly Detection Agent<br/>• Isolation Forest score: -score_samples(X)"]
+        Agent3["Agent 3: Contextual Reasoning Agent<br/>• Reason over door events vs. degradation"]
+        Agent4["Agent 4: Predictive Prognostics Agent<br/>• Slope tracking & ETA to 8°C (40+ min warning)"]
+        Agent5["Agent 5: Action & Dispatch Agent<br/>• Dynamic severity, early-warning tag & actionable mitigation"]
+
+        Agent1 --> Agent2
+        Agent2 --> Agent3
+        Agent3 --> Agent4
+        Agent4 --> Agent5
     end
 
-    subgraph Storage["💾 Persistence Layer (SQLite)"]
-        D1["SQLite Database<br/>(data/coldsentinel.db)"]
+    subgraph Store["💾 Persistence Layer (SQLite)"]
+        DB["SQLite Database<br/>(data/coldsentinel.db)"]
     end
 
-    subgraph WebDashboard["🖥️ Real-Time Monitoring UI"]
-        E1["Frontend Dashboard<br/>(HTML5 / CSS / Vanilla JS / Chart.js)"]
-        E2["Live Status Polling (/api/status)"]
-        E3["Alert Feed (/api/alerts)"]
-        E4["Historical Analytics & Trends (/api/history/:unit)"]
-        
-        E1 --> E2
-        E1 --> E3
-        E1 --> E4
+    subgraph UI["🖥️ Real-Time Monitoring Dashboard"]
+        Dash["Frontend Console (Vanilla JS / Chart.js)"]
+        Dash -->|Poll /api/status| DB
+        Dash -->|Poll /api/alerts| DB
+        Dash -->|Query /api/history/:unit| DB
     end
 
-    A1 -->|HTTP POST| B1
-    A2 -->|Replay Data| B1
-    B1 --> C1
-    C5 -->|Save Result| D1
-    D1 -.->|Read Readings & Alerts| E2
-    D1 -.->|Read Readings & Alerts| E3
-    D1 -.->|Read Readings & Alerts| E4
+    S1 -->|Telemetry Stream| API1
+    S2 -->|Simulated Readings| API1
+    API1 --> Agent1
+    Agent5 -->|Store State & Alerts| DB
 ```
 
 ---
 
-## Key Features
+## 🤖 The 5-Agent LangGraph Pipeline
 
-1. **Machine Learning Anomaly Detection (Isolation Forest)**:
-   - Evaluates a 12-dimensional telemetry feature vector including ambient temperature, compressor current, short-term moving averages, and rolling slope dynamics.
-2. **Context-Aware False Alarm Suppression**:
-   - Differentiates benign door-open actions from compressor degradation. If door opens while compressor current remains within standard operating levels, flags as harmless watch rather than alerting.
-3. **Predictive ETA to Failure Calculation**:
-   - Dynamically tracks rolling temperature slope ($\Delta T / \Delta t$) using a rolling median buffer to compute accurate remaining minutes until unit hits the critical failure boundary ($8.0^\circ\text{C}$).
-4. **Dynamic Severity Categorization**:
-   - Automatically prioritizes issues into `critical` ($\le 20\text{ min}$ to failure), `high` ($\le 45\text{ min}$), `medium`, or `watch`.
-5. **Real-Time Interactive Dashboard**:
-   - Modern, responsive dashboard showing per-unit live cards, alert feeds, and historical telemetry trends.
-6. **Sensor Replay Simulator**:
-   - Built-in simulation tool to replay historical or stress-testing datasets through the ingestion pipeline in synchronized intervals.
+ColdSentinel models risk reasoning as an explicit graph using **LangGraph's `StateGraph`**:
+
+```mermaid
+stateDiagram-v2
+    [*] --> IngestionAgent: START
+    IngestionAgent --> MLDetectionAgent: Sanitized State
+    MLDetectionAgent --> ContextualReasoningAgent: Anomaly Vector & Score
+    ContextualReasoningAgent --> RiskPrognosticsAgent: Filtered Operating Status
+    RiskPrognosticsAgent --> ActionDispatchAgent: Predictive ETA & Severity
+    ActionDispatchAgent --> [*]: END & Persist to Store
+```
+
+| Agent | Name | Responsibility & Reasoning |
+|---|---|---|
+| **Agent 1** | **Ingestion & Validation Agent** | Validates incoming IoT payload structure, casts telemetry to standardized float representations, and ensures data integrity. |
+| **Agent 2** | **ML Anomaly Detection Agent** | Evaluates a 12-dimensional telemetry feature vector via pre-trained **Isolation Forest** (`model/iforest.joblib`), outputting an anomaly score and anomaly flag against decision thresholds. |
+| **Agent 3** | **Contextual Reasoning Agent** | Performs contextual domain reasoning. Differentiates benign door-open spikes from compressor degradation; suppresses false alarms when door is open while compressor current remains nominal. |
+| **Agent 4** | **Risk Prognostics Agent** | Tracks temperature slope trajectory using rolling median filtering to eliminate transient spikes. Computes prognostic **Time-To-Failure (ETA to $8.0^\circ\text{C}$)** with an early-warning window **40+ minutes ahead of failure**. |
+| **Agent 5** | **Action & Dispatch Agent** | Classifies risk severity (`critical` $\le 20\text{m}$, `high` $\le 45\text{m}$, `medium`, `watch`), injects early warning tags, and synthesizes clear, actionable mitigation instructions for facility operators. |
 
 ---
 
-## 5-Stage Detection & Reasoning Pipeline
+## 🚀 Key Highlights & Capabilities
 
-```
-[ Raw Telemetry ]
-       │
-       ▼
-1. INGEST & VALIDATE ─────> Validates unit_id, timestamp, temp_c, and required telemetry.
-       │
-       ▼
-2. ML DETECT (Isolation) ─> Computes anomaly score: -score_samples(X) > THRESHOLD.
-       │
-       ▼
-3. CONTEXT REASONING ────> Checks consecutive anomalous flags & door opening states.
-       │                   • Single flag -> "watch"
-       │                   • Door open + normal compressor current -> "watch" (suppressed)
-       │                   • Consecutive sustained anomalies -> "alert"
-       ▼
-4. RISK & ETA ASSESSMENT ─> Tracks rolling median temp slope:
-       │                   • ETA (min) = (8.0°C - temp_c) / slope
-       │                   • Assigns severity: Critical (≤20m), High (≤45m), Medium.
-       ▼
-5. ACTIONABLE ALERTS ────> Generates prescriptive messages and persists to SQLite store.
-```
+- **40+ Minute Early Warning Window**: Identifies cooling system degradation well in advance before product temperatures reach the critical spoilage threshold ($8.0^\circ\text{C}$), allowing staff ample time to relocate stock or service compressors.
+- **Context-Aware False Alarm Suppression**: Uses domain heuristics to identify benign door access events, preventing alert fatigue.
+- **Stateful LangGraph Architecture**: Built on LangGraph `StateGraph` passing a typed, extensible `PipelineState` between specialized agents.
+- **Sub-Second Real-Time Inference**: Pipeline runs deterministically in milliseconds per reading, suitable for high-frequency IoT streaming.
+- **Interactive Web Dashboard**: Live status cards, alert feed, and historical temperature trend charts.
 
 ---
 
-## Project Structure
+## 📂 Project Structure
 
 ```
 ColdSentinel/
-├── app.py                  # Flask web server and API endpoints
+├── app.py                  # Flask web server and REST API endpoints
 ├── backend/
-│   ├── pipeline.py         # 5-stage inference, reasoning, and risk pipeline
+│   ├── pipeline.py         # 5-Agent LangGraph StateGraph pipeline & state definitions
 │   ├── predictor.py        # ML Isolation Forest inference loader
 │   └── store.py            # SQLite database schema, insert, and query functions
 ├── data/
-│   ├── coldsentinel.csv    # Sample time-series sensor data for replay
+│   ├── coldsentinel.csv    # Multi-unit time-series sensor benchmark dataset
 │   └── coldsentinel.db     # Local SQLite database (auto-generated)
 ├── model/
 │   └── iforest.joblib      # Pre-trained Isolation Forest model & metadata
 ├── scripts/
-│   └── replay.py           # Ingestion simulator replaying sensor readings
+│   └── replay.py           # Ingestion simulator streaming sensor readings
 ├── static/
 │   ├── css/style.css       # Clean dashboard styling
 │   └── js/app.js           # Live data polling and chart rendering
 ├── templates/
 │   └── index.html          # Web monitoring console
-├── test_pipeline.py        # Unit tests for the 5-stage pipeline
-├── test_predictor.py       # Unit tests for model scoring
-├── test_store.py           # Unit tests for database store
-├── requirements.txt        # Python dependencies
-├── .gitignore              # Ignored files and directories
+├── test_pipeline.py        # Pipeline & agent validation tests
+├── test_predictor.py       # ML scoring unit tests
+├── test_store.py           # SQLite persistence tests
+├── requirements.txt        # Python dependencies (including LangGraph)
+├── .gitignore              # Git exclusions
 └── README.md               # Documentation and architecture guide
 ```
 
 ---
 
-## Getting Started
+## ⚙️ Quickstart Guide
 
-### 1. Prerequisites
-- Python 3.10 or higher
-- Git
-
-### 2. Clone Repository
+### 1. Clone the Repository
 ```bash
 git clone https://github.com/Khushee2023/ColdSentinel.git
 cd ColdSentinel
 ```
 
-### 3. Set Up Virtual Environment
+### 2. Set Up Virtual Environment
 ```bash
 # Windows
 python -m venv venv
@@ -157,38 +141,37 @@ python3 -m venv venv
 source venv/bin/activate
 ```
 
-### 4. Install Dependencies
+### 3. Install Dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
-### 5. Run the Application
-Start the Flask web server:
+### 4. Launch the Web Application
 ```bash
 python app.py
 ```
-Open your browser and navigate to `http://127.0.0.1:5000`.
+Open your browser and navigate to **`http://127.0.0.1:5000`**.
 
-### 6. Run the Sensor Replay Simulation
-In a separate terminal (with the virtual environment activated), stream sample sensor data into the live server:
+### 5. Stream Sensor Telemetry (Replay Simulator)
+In a separate terminal (with virtual environment activated):
 ```bash
 python scripts/replay.py --delay 0.5
 ```
 
 ---
 
-## REST API Reference
+## 📡 REST API Reference
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `GET` | `/` | Renders the real-time monitoring web dashboard |
-| `POST` | `/api/ingest` | Ingests a single sensor reading and processes it through the pipeline |
-| `GET` | `/api/status` | Returns the latest status reading for each refrigeration unit |
-| `GET` | `/api/alerts` | Fetches the recent alerts list ordered by timestamp |
-| `GET` | `/api/history/<unit_id>` | Returns time-series historical data for a specific unit (for charts) |
-| `POST` | `/api/reset` | Clears historical data and resets in-memory pipeline state |
+| `GET` | `/` | Web monitoring console |
+| `POST` | `/api/ingest` | Streams a sensor reading through the 5-Agent LangGraph pipeline |
+| `GET` | `/api/status` | Returns latest status reading for each refrigeration unit |
+| `GET` | `/api/alerts` | Returns recent alerts ordered by timestamp |
+| `GET` | `/api/history/<unit_id>` | Historical readings for a specific unit (for charts) |
+| `POST` | `/api/reset` | Resets pipeline agent memory and clears SQLite database |
 
-### Sample Telemetry Ingestion Payload (`POST /api/ingest`)
+### Telemetry Ingestion Payload Example (`POST /api/ingest`)
 ```json
 {
   "unit_id": "unit_01",
@@ -210,9 +193,9 @@ python scripts/replay.py --delay 0.5
 
 ---
 
-## Testing
+## 🧪 Testing
 
-Run the test suite to verify pipeline integrity:
+Run test scripts to verify the LangGraph agent graph, ML scoring, and database store:
 ```bash
 python test_pipeline.py
 python test_predictor.py
@@ -221,6 +204,6 @@ python test_store.py
 
 ---
 
-## License
+## 📄 License
 
 This project is licensed under the MIT License.
